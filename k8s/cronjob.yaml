@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-backup
+  namespace: wp
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: mysql:8.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - mysqldump -h mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE > /backup/db-$(date +%Y%m%d).sql
+              envFrom:
+                - secretRef:
+                    name: mysql-secret
+              volumeMounts:
+                - mountPath: /backup
+                  name: backup-storage
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-pvc
