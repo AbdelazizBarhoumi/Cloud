@@ -4,10 +4,9 @@ docker swarm init
 docker stack deploy -c docker-compose.yml wpstack
 docker service scale wpstack_wordpress=3
 
-
-& "C:\minikube\minikube.exe" start
-& "C:\minikube\minikube.exe" addons enable ingress  # For Ingress
-& "C:\minikube\minikube.exe" addons enable metrics-server  # For HPA (Horizontal Pod Autoscaler)
+& "C:\minikube\minikube.exe" start --driver=docker
+& "C:\minikube\minikube.exe" addons enable ingress
+& "C:\minikube\minikube.exe" addons enable metrics-server
 
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/ -n wp
@@ -19,3 +18,4 @@ kubectl get svc -n wp
 kubectl get ingress -n wp
 kubectl get hpa -n wp
 
+kubectl port-forward svc/wordpress 8080:80 -n wp

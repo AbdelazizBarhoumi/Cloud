@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,29 +15,53 @@ spec:
         app: wordpress
     spec:
       containers:
-        - name: wordpress
-          image: wordpress:php8.3-apache
-          envFrom:
-            - configMapRef:
-                name: wp-config
-            - secretRef:
-                name: mysql-secret
-          volumeMounts:
-            - mountPath: /var/www/html
-              name: wp-storage
-          livenessProbe:
-            httpGet:
-              path: /wp-login.php
-              port: 80
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /wp-login.php
-              port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 5
-      volumes:
+      - name: wordpress
+        image: wordpress:php8.3-apache
+        env:
+        - name: WORDPRESS_DB_HOST
+          value: mysql:3306
+        - name: WORDPRESS_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_USER
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_PASSWORD
+        - name: WORDPRESS_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_DATABASE
+        ports:
+        - containerPort: 80
+        volumeMounts:
         - name: wp-storage
-          persistentVolumeClaim:
-            claimName: wp-pvc
+          mountPath: /var/www/html
+        livenessProbe:
+          httpGet:
+            path: /wp-admin/install.php
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /wp-admin/install.php
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 10
+        startupProbe:
+          httpGet:
+            path: /wp-admin/install.php
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
+      volumes:
+      - name: wp-storage
+        persistentVolumeClaim:
+          claimName: wp-pvc

@@ -1,2 +1,5 @@
 .env
-nginx/
+nginx/certs/*
+!nginx/certs/.gitkeep
+node_modules
+*.log
