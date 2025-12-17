@@ -1,8 +1,9 @@
 & "C:\Program Files\OpenSSL-Win64\bin\openssl.exe" req -x509 -nodes -days 365 -newkey rsa:2048 -keyout nginx/certs/selfsigned.key -out nginx/certs/selfsigned.crt
 
 docker swarm init
-docker stack deploy -c docker-compose.yml wpstack
-docker service scale wpstack_wordpress=3
+docker stack deploy -c docker-compose.yml CloudProject
+docker service scale CloudProject=3
+docker service scale CloudProject_mysql=1 CloudProject_nginx=1 CloudProject_grafana=1 CloudProject_prometheus=1 CloudProject_wordpress=3 CloudProject_nginx-exporter=1
 
 & "C:\minikube\minikube.exe" start --driver=docker
 & "C:\minikube\minikube.exe" addons enable ingress
