@@ -1,6 +1,3 @@
----
-version: "3.9"
-
 services:
   mysql:
     image: mysql:8.0
@@ -31,7 +28,6 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost/wp-admin/install.php || exit 1"]
       interval: 10s
       retries: 5
-
   nginx:
     image: nginx:alpine
     restart: always
@@ -46,6 +42,45 @@ services:
     depends_on:
       - wordpress
 
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: always
+    ports:
+      - "9100:9100"
+    networks:
+      - frontend
+    command:
+      - '--path.rootfs=/host'
+    pid: host
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    restart: always
+    command:
+      - '--mysqld.username=exporter'
+      - '--mysqld.address=mysql:3306'
+    environment:
+      - MYSQLD_EXPORTER_PASSWORD=exporterpass
+    ports:
+      - "9104:9104"
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - mysql
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    restart: always
+    command:
+      - '-nginx.scrape-uri=http://nginx:80/stub_status'
+    ports:
+      - "9113:9113"
+    networks:
+      - frontend
+    depends_on:
+      - nginx
+
   prometheus:
     image: prom/prometheus:latest
     restart: always
@@ -56,11 +91,15 @@ services:
       - "9090:9090"
     networks:
       - frontend
+    depends_on:
+      - node-exporter
 
   grafana:
     image: grafana/grafana:latest
     restart: always
     env_file: .env
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "3000:3000"
     networks:
