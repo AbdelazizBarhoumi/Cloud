@@ -23,17 +23,23 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/mysql
               name: mysql-storage
+            - mountPath: /docker-entrypoint-initdb.d/init.sql
+              name: mysql-init
+              subPath: init.sql
           livenessProbe:
             exec:
-              command: ["mysqladmin", "ping"]
+              command: ["sh", "-c", "mysqladmin ping -u root -p$MYSQL_ROOT_PASSWORD"]
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["mysqladmin", "ping"]
+              command: ["sh", "-c", "mysqladmin ping -u root -p$MYSQL_ROOT_PASSWORD"]
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
         - name: mysql-storage
           persistentVolumeClaim:
             claimName: mysql-pvc
+        - name: mysql-init
+          configMap:
+            name: mysql-init

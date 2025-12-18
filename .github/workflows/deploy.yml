@@ -29,12 +29,14 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build & push image
+      - name: Build & push WordPress image
         uses: docker/build-push-action@v5
         with:
           context: ./wordpress
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:${{ github.sha }}
 
   test:
     runs-on: ubuntu-latest
@@ -55,16 +57,19 @@ jobs:
 
       - name: Wait for WordPress
         run: |
-          for i in {1..24}; do
-            status=$(docker-compose exec -T wordpress curl -s -o /dev/null -w "%{http_code}" http://localhost/wp-admin/install.php || echo 0)
-            if [ "$status" -lt 500 ] && [ "$status" -ne 0 ]; then
-              echo "WordPress is UP and reachable! (HTTP $status)"
+          echo "Waiting 30s for services to initialize..."
+          sleep 30
+          for i in {1..20}; do
+            status=$(docker-compose exec -T wordpress curl -s -o /dev/null -w "%{http_code}" http://localhost/wp-admin/install.php 2>/dev/null || echo 0)
+            if [ "$status" -eq 200 ] || [ "$status" -eq 302 ]; then
+              echo "✓ WordPress is UP and reachable! (HTTP $status)"
               exit 0
             fi
-            echo "Attempt $i/24 – waiting for WordPress to start... (HTTP $status)"
+            echo "Attempt $i/20 – waiting for WordPress... (HTTP $status)"
             sleep 5
           done
-          echo "ERROR: WordPress did not start in time"
+          echo "ERROR: WordPress did not respond in time"
+          docker-compose logs wordpress
           exit 1
 
 
@@ -86,12 +91,48 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
-      - name: Deploy to Kubernetes
+      - name: Create kubeconfig
         run: |
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
-          kubectl apply -f k8s/
+      - name: Create namespace
+        run: kubectl create namespace wp --dry-run=client -o yaml | kubectl apply -f -
+      - name: Deploy ConfigMaps
+        run: |
+          kubectl apply -f k8s/grafana-configmaps.yaml
+          kubectl apply -f k8s/mysql-init-configmap.yaml
+          kubectl apply -f k8s/nginx-configmap.yaml
+          kubectl apply -f k8s/prometheus-configmap.yaml
+      - name: Create Grafana Dashboard ConfigMaps
+        run: |
+          kubectl create configmap grafana-dashboard-prometheus --from-file=prometheus-stats.json=grafana/dashboards/prometheus-stats.json -n wp --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create configmap grafana-dashboard-mysql --from-file=mysql-overview.json=grafana/dashboards/mysql-overview.json -n wp --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create configmap grafana-dashboard-nginx --from-file=nginx.json=grafana/dashboards/nginx.json -n wp --dry-run=client -o yaml | kubectl apply -f -
+      - name: Deploy secrets and storage
+        run: |
+          kubectl apply -f k8s/secret.yaml
+          kubectl apply -f k8s/persistentvolume.yaml
+          kubectl apply -f k8s/persistentvolumeclaim.yaml
+      - name: Deploy services and deployments
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/mysql-deployment.yaml
+          kubectl apply -f k8s/wordpress-deployment.yaml
+          kubectl apply -f k8s/nginx-deployment.yaml
+          kubectl apply -f k8s/grafana-deployment.yaml
+          kubectl apply -f k8s/prometheus-deployment.yaml
+          kubectl apply -f k8s/mysqld-exporter-deployment.yaml
+          kubectl apply -f k8s/nginx-exporter-deployment.yaml
+          kubectl apply -f k8s/node-exporter-daemonset.yaml
+      - name: Deploy HPA and Ingress
+        run: |
+          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/ingress.yaml || true
+      - name: Wait for deployments
+        run: |
           kubectl rollout status deployment/wordpress -n wp --timeout=5m
+          kubectl rollout status deployment/mysql -n wp --timeout=3m
+          kubectl rollout status deployment/grafana -n wp --timeout=3m
       - name: Status
         run: kubectl get all,hpa -n wp

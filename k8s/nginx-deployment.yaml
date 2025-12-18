@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: wp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: nginx.conf
+        - name: nginx-certs
+          mountPath: /etc/nginx/certs
+          readOnly: true
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+      - name: nginx-certs
+        secret:
+          secretName: nginx-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: wp
+spec:
+  selector:
+    app: nginx
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    nodePort: 30082
+  - name: https
+    port: 443
+    targetPort: 443
+    nodePort: 30445
+  type: NodePort

@@ -1,0 +1,41 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysqld-exporter
+  namespace: wp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysqld-exporter
+  template:
+    metadata:
+      labels:
+        app: mysqld-exporter
+    spec:
+      containers:
+      - name: mysqld-exporter
+        image: prom/mysqld-exporter:v0.15.1
+        args:
+        - '--mysqld.username=exporter'
+        - '--mysqld.address=mysql:3306'
+        env:
+        - name: MYSQLD_EXPORTER_PASSWORD
+          value: "exporterpass"
+        ports:
+        - containerPort: 9104
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysqld-exporter
+  namespace: wp
+spec:
+  selector:
+    app: mysqld-exporter
+  ports:
+  - port: 9104
+    targetPort: 9104
+    nodePort: 30106
+  type: NodePort

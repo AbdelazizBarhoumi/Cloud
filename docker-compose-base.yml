@@ -17,6 +17,8 @@ services:
     image: wordpress:latest
     restart: always
     env_file: .env
+    environment:
+      - WORDPRESS_CONFIG_EXTRA=define('WP_HOME','https://localhost'); define('WP_SITEURL','https://localhost');
     volumes:
       - wp_data:/var/www/html
     depends_on:
@@ -35,8 +37,8 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     ports:
-      - "81:80"
-      - "444:443"
+      - "80:80"
+      - "443:443"
     networks:
       - frontend
     depends_on:
@@ -46,7 +48,7 @@ services:
     image: prom/node-exporter:latest
     restart: always
     ports:
-      - "9101:9100"
+      - "9100:9100"
     networks:
       - frontend
     command:
@@ -62,7 +64,7 @@ services:
     environment:
       - MYSQLD_EXPORTER_PASSWORD=exporterpass
     ports:
-      - "9105:9104"
+      - "9104:9104"
     networks:
       - backend
       - frontend
@@ -75,7 +77,7 @@ services:
     command:
       - '-nginx.scrape-uri=http://nginx:80/stub_status'
     ports:
-      - "9114:9113"
+      - "9113:9113"
     networks:
       - frontend
     depends_on:
@@ -88,7 +90,7 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     ports:
-      - "9091:9090"
+      - "9090:9090"
     networks:
       - frontend
     depends_on:
@@ -101,8 +103,9 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
     ports:
-      - "3001:3000"
+      - "3000:3000"
     networks:
       - frontend
     depends_on:
@@ -112,6 +115,7 @@ volumes:
   db_data:
   wp_data:
   prometheus_data:
+  grafana_data:
 
 networks:
   frontend:

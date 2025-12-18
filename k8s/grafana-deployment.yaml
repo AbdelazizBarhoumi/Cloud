@@ -1,0 +1,87 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: wp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      initContainers:
+      - name: download-dashboards
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          curl -sL https://grafana.com/api/dashboards/1860/revisions/37/download -o /dashboards/node-exporter-full.json
+        volumeMounts:
+        - name: dashboard-downloads
+          mountPath: /dashboards
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "adminpass"
+        - name: GF_METRICS_ENABLED
+          value: "true"
+        - name: GF_FEATURE_TOGGLES_ENABLE
+          value: ""
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: grafana-datasources
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: grafana-dashboards-config
+          mountPath: /etc/grafana/provisioning/dashboards
+        - name: grafana-dashboard-prometheus
+          mountPath: /var/lib/grafana/dashboards/prometheus-stats.json
+          subPath: prometheus-stats.json
+        - name: grafana-dashboard-mysql
+          mountPath: /var/lib/grafana/dashboards/mysql-overview.json
+          subPath: mysql-overview.json
+        - name: grafana-dashboard-nginx
+          mountPath: /var/lib/grafana/dashboards/nginx.json
+          subPath: nginx.json
+        - name: dashboard-downloads
+          mountPath: /var/lib/grafana/dashboards/downloaded
+      volumes:
+      - name: dashboard-downloads
+        emptyDir: {}
+      - name: grafana-datasources
+        configMap:
+          name: grafana-datasources
+      - name: grafana-dashboards-config
+        configMap:
+          name: grafana-dashboards-config
+      - name: grafana-dashboard-prometheus
+        configMap:
+          name: grafana-dashboard-prometheus
+      - name: grafana-dashboard-mysql
+        configMap:
+          name: grafana-dashboard-mysql
+      - name: grafana-dashboard-nginx
+        configMap:
+          name: grafana-dashboard-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: wp
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30002
+  type: NodePort

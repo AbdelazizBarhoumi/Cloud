@@ -5,7 +5,7 @@ metadata:
   name: wordpress
   namespace: wp
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: wordpress
@@ -35,32 +35,13 @@ spec:
             secretKeyRef:
               name: mysql-secret
               key: MYSQL_DATABASE
+        - name: WORDPRESS_CONFIG_EXTRA
+          value: "define('WP_HOME','https://localhost:446'); define('WP_SITEURL','https://localhost:446'); define('FORCE_SSL_ADMIN', false); define('FORCE_SSL_LOGIN', false);"
         ports:
         - containerPort: 80
         volumeMounts:
         - name: wp-storage
           mountPath: /var/www/html
-        livenessProbe:
-          httpGet:
-            path: /wp-admin/install.php
-            port: 80
-          initialDelaySeconds: 60
-          periodSeconds: 20
-          failureThreshold: 6
-        readinessProbe:
-          httpGet:
-            path: /wp-admin/install.php
-            port: 80
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          failureThreshold: 10
-        startupProbe:
-          httpGet:
-            path: /wp-admin/install.php
-            port: 80
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          failureThreshold: 30
       volumes:
       - name: wp-storage
         persistentVolumeClaim:
